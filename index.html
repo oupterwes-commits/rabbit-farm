@@ -360,5 +360,38 @@ render();boot();
 })();
 </script>
 <script>if("serviceWorker"in navigator&&location.protocol.startsWith("http")){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}</script>
+<script>
+/* إشعارات التذكير خارج التطبيق (Capacitor LocalNotifications) - كل يوم الساعة 8 صباحًا */
+(function(){
+const HOUR=8,MIN=0,DAYS=30;
+const LN=()=>window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.LocalNotifications;
+let busy=false;
+async function plan(){
+const ln=LN();if(!ln||busy)return;busy=true;
+try{
+const R=window.RF;if(!R||typeof Core==='undefined')return;
+const has=R.rows('does').length||R.rows('bucks').length;
+let p=await ln.checkPermissions();
+if(p.display==='prompt'||p.display==='prompt-with-rationale'){if(!has)return;p=await ln.requestPermissions()}
+if(p.display!=='granted')return;
+const pend=await ln.getPending();
+if(pend.notifications&&pend.notifications.length)await ln.cancel({notifications:pend.notifications.map(n=>({id:n.id}))});
+const S={does:R.rows('does'),bucks:R.rows('bucks'),br:R.rows('br'),sales:R.rows('sales'),exp:R.rows('exp')};
+const c=R.S.cfg,T=Core.D(Core.todayS()),now=new Date(),out=[];
+for(let i=0;i<DAYS;i++){
+const at=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i,HOUR,MIN,0);
+if(at<=now)continue;
+const A=Core.alerts(S,c,T+i),parts=[];
+if(A.urgent.length)parts.push('🔴 '+A.urgent.length+' يحتاج إجراء');
+if(A.late)parts.push('💉 '+A.late+' تحصين متأخر');
+if(A.soon.length)parts.push('🟡 '+A.soon.length+' قريب من موعده');
+if(!parts.length)continue;
+out.push({id:100+i,title:'🐇 مزرعة الأرانب',body:parts.join(' • '),schedule:{at,allowWhileIdle:true}})}
+if(out.length)await ln.schedule({notifications:out})
+}catch(e){}finally{busy=false}}
+addEventListener('load',()=>setTimeout(plan,4000));
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')plan()});
+})();
+</script>
 </body>
 </html>
